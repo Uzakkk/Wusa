@@ -39,7 +39,7 @@ var (
 	checkedLock sync.Mutex
 	proxies     []string
 
-	// Counters using atomic for safe concurrent access
+	
 	totalChecked  uint64
 	totalValid    uint64
 	totalTaken    uint64
@@ -53,7 +53,6 @@ func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 }
 
-// Clear screen function, cross platform
 func clearScreen() {
 	switch runtime.GOOS {
 	case "windows":
@@ -209,7 +208,6 @@ func gen3N() string {
 	return string(result)
 }
 
-// Worker for generated usernames
 func worker(generatorFunc func() string, httpClient *http.Client, webhookURL string) {
 	for {
 		username := generatorFunc()
@@ -226,7 +224,6 @@ func worker(generatorFunc func() string, httpClient *http.Client, webhookURL str
 	}
 }
 
-// Worker for reading usernames from slice (file mode)
 func workerFromSlice(usernames []string, jobs <-chan int, httpClient *http.Client, webhookURL string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for idx := range jobs {
@@ -244,7 +241,6 @@ func workerFromSlice(usernames []string, jobs <-chan int, httpClient *http.Clien
 	}
 }
 
-// Common username processing
 func processUsername(username, webhookURL string, client *http.Client) {
 	url := fmt.Sprintf("https://auth.roblox.com/v1/usernames/validate?Username=%s&Birthday=2000-01-01", username)
 
@@ -279,9 +275,8 @@ func processUsername(username, webhookURL string, client *http.Client) {
 	atomic.AddUint64(&totalChecked, 1)
 
 	switch code {
-	case 0: // Valid
+	case 0: 
 		atomic.AddUint64(&totalValid, 1)
-		// Save to valid.txt
 		if f, err := os.OpenFile("valid.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
 			f.WriteString(username + "\n")
 			f.Close()
@@ -289,10 +284,10 @@ func processUsername(username, webhookURL string, client *http.Client) {
 
 		sendToWebhook(username, webhookURL, nil)
 
-	case 1: // Taken
+	case 1:
 		atomic.AddUint64(&totalTaken, 1)
 
-	case 2: // Censored
+	case 2: 
 		atomic.AddUint64(&totalCensored, 1)
 	}
 }
@@ -306,14 +301,13 @@ func sendToWebhook(username, webhookURL string, _ *http.Client) {
 	for attempt := 1; attempt <= 5; attempt++ {
 		req, err := http.NewRequest("POST", webhookURL, bytes.NewBuffer(jsonData))
 		if err != nil {
-			//color.Red("Webhook request creation failed (attempt %d): %v", attempt, err)
+			
 			continue
 		}
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			//log.Printf("Webhook send failed for %s (attempt %d): %v", username, attempt, err)
 			time.Sleep(time.Duration(200+rand.Intn(300)) * time.Millisecond)
 			continue
 		}
@@ -324,7 +318,6 @@ func sendToWebhook(username, webhookURL string, _ *http.Client) {
 			return
 		}
 
-		//color.Red("Webhook failed for %s (attempt %d): HTTP %d - %s", username, attempt, resp.StatusCode, string(body))
 
 		if resp.StatusCode == 429 {
 
@@ -341,7 +334,6 @@ func sendToWebhook(username, webhookURL string, _ *http.Client) {
 		}
 	}
 
-	//color.Red("Failed to send webhook for: %s", username)
 }
 
 func updateTitle() {
@@ -351,7 +343,7 @@ func updateTitle() {
 	for range ticker.C {
 		elapsed := time.Since(startTime).Minutes()
 		if elapsed == 0 {
-			elapsed = 1.0 / 60.0 // avoid divide by zero
+			elapsed = 1.0 / 60.0 
 		}
 		checkedCount := atomic.LoadUint64(&totalChecked)
 		validCount := atomic.LoadUint64(&totalValid)
@@ -370,8 +362,6 @@ func setConsoleTitle(title string) {
 		cmd := exec.Command("cmd", "/c", "title "+title)
 		cmd.Run()
 	default:
-		// Unix-like terminals usually don't support setting window title this way,
-		// but we can try escape sequences:
 		fmt.Printf("\033]0;%s\007", title)
 	}
 }
@@ -386,14 +376,14 @@ func printBanner() {
 		"    /_/                    /____/       ",
 	}
 
-	// Fade blue colors using ANSI escape codes
+
 	colors := []string{
-		"\033[38;5;81m", // light blue
-		"\033[38;5;75m", // medium blue
-		"\033[38;5;69m", // slate blue
-		"\033[38;5;63m", // darker blue
-		"\033[38;5;60m", // deeper blue
-		"\033[38;5;57m", // navyish
+		"\033[38;5;81m",
+		"\033[38;5;75m", 
+		"\033[38;5;69m", 
+		"\033[38;5;63m",
+		"\033[38;5;60m",
+		"\033[38;5;57m", 
 	}
 
 	for i, line := range lines {
@@ -403,7 +393,6 @@ func printBanner() {
 }
 
 func main() {
-	// ANSI color codes
 	blue := "\033[34m"
 	white := "\033[37m"
 	fmt.Println("")
@@ -449,12 +438,10 @@ func main() {
 	var generatorFunc func() string
 	var webhookURL string
 
-	// Ask for usernames file for all modes now as you requested:
 	fmt.Print("Enter name for file with usernames: ")
 	var usernamesFile string
 	fmt.Scanln(&usernamesFile)
 
-	// Load usernames if mode 6 (file input)
 	if mode == "6" {
 		file, err := os.Open(usernamesFile)
 		if err != nil {
@@ -477,14 +464,12 @@ func main() {
 			color.Red("No usernames loaded from file.")
 		}
 
-		// Set webhook to 5L webhook always for mode 6
 		webhookURL = config.Pronouncable5LWebhook
 		if webhookURL == "" {
 			color.Red("5L webhook URL missing in config for mode 6.")
 		}
 
 	} else {
-		// Other modes: validate mode, set generator and webhook
 		genFunc, ok := validModes[mode]
 		if !ok {
 			color.Red("Invalid mode selected. Defaulting to 5N.")
@@ -498,13 +483,9 @@ func main() {
 			color.Red("Webhook URL not found or empty for mode %s", mode)
 		}
 
-		// For non-file modes, optionally load usernames from file as well (your request)
-		// Let's load usernames file but only for stats? Or ignore loaded usernames in these modes?
-		// You requested to ask username file always, but you didn't clarify use for non-6 modes.
-		// So for non-6 modes, ignore usernames file content for checking. We'll only check generator.
+
 	}
 
-	// Threads prompt
 	var numThreads int
 	fmt.Print("Enter number of threads: ")
 	_, err := fmt.Scan(&numThreads)
@@ -513,31 +494,25 @@ func main() {
 		numThreads = 1
 	}
 
-	// Clear screen and print status
 	clearScreen()
 	linesLoaded := len(usernames)
 	if mode != "6" {
-		// For generated modes, linesLoaded is unknown; just show 0 or "N/A"
 		linesLoaded = 0
 	}
 
 	printBanner()
 	fmt.Println("")
 
-	// Print the quote
 	fmt.Println(fmt.Sprintf("%s[ %sQuote%s ]%s - Hunt the bag, Not her.\n", blue, white, blue, white))
 
-	// Print module info with colored "[ ∞ ]"
 	fmt.Println(fmt.Sprintf("%s[ %s∞%s ]%s : Module: %s", blue, white, blue, white, modeToName(mode)))
 	fmt.Println(fmt.Sprintf("%s[ %s∞%s ]%s : Lines Loaded: %d", blue, white, blue, white, linesLoaded))
 	fmt.Println(fmt.Sprintf("%s[ %s∞%s ]%s : Proxies Loaded: %d", blue, white, blue, white, len(proxies)))
 	fmt.Println(fmt.Sprintf("%s[ %s∞%s ]%s : Threads Loaded: %d\n", blue, white, blue, white, numThreads))
 
-	// Start title updater
 	go updateTitle()
 
 	if mode == "6" {
-		// Use channel job queue for slices
 		jobs := make(chan int, len(usernames))
 		var wg sync.WaitGroup
 
@@ -554,13 +529,12 @@ func main() {
 		close(jobs)
 		wg.Wait()
 	} else {
-		// Generated mode workers
 		for i := 0; i < numThreads; i++ {
 			proxy := proxies[i%len(proxies)]
 			client := newHttpClientWithProxy(proxy)
 			go worker(generatorFunc, client, webhookURL)
 		}
-		select {} // run forever
+		select {} 
 	}
 }
 
